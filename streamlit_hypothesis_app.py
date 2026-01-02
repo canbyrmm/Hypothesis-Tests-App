@@ -1,22 +1,31 @@
-# Professional Hypothesis Testing Platform
-# Enhanced version with modern UI, comprehensive visualizations, and advanced analytics
+# Professional Hypothesis Testing Platform - Cloud Compatible Version
+# Simplified for Streamlit Cloud deployment
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import seaborn as sns
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    
 import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy import stats
-from scipy.stats import (shapiro, levene, normaltest, jarque_bera, anderson,
+from scipy.stats import (shapiro, levene, normaltest, jarque_bera, 
                         wilcoxon, mannwhitneyu, kruskal, friedmanchisquare,
                         fisher_exact, chi2_contingency)
-import statsmodels.api as sm
-from statsmodels.stats.power import ttest_power
-from statsmodels.stats.contingency_tables import mcnemar, cochrans_q
-from statsmodels.stats.diagnostic import het_white
+try:
+    import statsmodels.api as sm
+    from statsmodels.stats.power import ttest_power
+    from statsmodels.stats.contingency_tables import mcnemar, cochrans_q
+    STATSMODELS_AVAILABLE = True
+except ImportError:
+    STATSMODELS_AVAILABLE = False
+    
 import ast
 import warnings
 warnings.filterwarnings('ignore')
@@ -84,23 +93,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(220,53,69,0.2);
     }
     
-    .progress-indicator {
-        background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
-        height: 6px;
-        border-radius: 3px;
-        margin: 0.5rem 0;
-    }
-    
-    .step-completed {
-        color: #28a745;
-        font-weight: 600;
-    }
-    
-    .step-pending {
-        color: #6c757d;
-        font-weight: 400;
-    }
-    
     .professional-card {
         background: white;
         border: 1px solid #e9ecef;
@@ -108,23 +100,6 @@ st.markdown("""
         padding: 1.5rem;
         margin: 1rem 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    
-    .stTab [data-baseweb="tab-list"] {
-        gap: 2px;
-    }
-    
-    .stTab [data-baseweb="tab"] {
-        height: 60px;
-        padding: 0 24px;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-radius: 8px 8px 0 0;
-        font-weight: 500;
-    }
-    
-    .stTab [aria-selected="true"] [data-baseweb="tab"] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -149,8 +124,6 @@ if 'parametric' not in st.session_state:
     st.session_state['parametric'] = False
 if 'paired' not in st.session_state:
     st.session_state['paired'] = None
-if 'current_tab' not in st.session_state:
-    st.session_state['current_tab'] = 0
 
 # --- Helper Functions ---
 def create_progress_indicator():
@@ -183,59 +156,35 @@ def create_data_summary_card(data):
         with col4:
             st.metric("🅰️ Text Cols", data.select_dtypes(include=['object']).shape[1])
 
-def create_distribution_plots(data, column=None):
-    """Create comprehensive distribution analysis plots"""
-    if column is None:
-        # If no specific column, use first numeric column
-        numeric_cols = data.select_dtypes(include=[np.number]).columns
-        if len(numeric_cols) == 0:
-            return
-        column = numeric_cols[0]
-    
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=('Distribution Plot', 'Box Plot', 'Q-Q Plot', 'Histogram'),
-        specs=[[{"type": "scatter"}, {"type": "box"}],
-               [{"type": "scatter"}, {"type": "bar"}]]
-    )
+def create_matplotlib_plots(data, column):
+    """Create distribution plots using matplotlib as fallback"""
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(f'Distribution Analysis: {column}', fontsize=16)
     
     values = data[column].dropna()
     
-    # Distribution plot
-    fig.add_trace(
-        go.Histogram(x=values, name="Distribution", nbinsx=30, opacity=0.7),
-        row=1, col=1
-    )
+    # Histogram
+    axes[0, 0].hist(values, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
+    axes[0, 0].set_title('Histogram')
+    axes[0, 0].set_xlabel('Values')
+    axes[0, 0].set_ylabel('Frequency')
     
     # Box plot
-    fig.add_trace(
-        go.Box(y=values, name="Box Plot", boxmean=True),
-        row=1, col=2
-    )
+    axes[0, 1].boxplot(values)
+    axes[0, 1].set_title('Box Plot')
+    axes[0, 1].set_ylabel('Values')
     
     # Q-Q plot
-    from scipy import stats
-    qq_data = stats.probplot(values, dist="norm")
-    fig.add_trace(
-        go.Scatter(x=qq_data[0][0], y=qq_data[0][1], mode='markers', name="Q-Q Plot"),
-        row=2, col=1
-    )
+    stats.probplot(values, dist="norm", plot=axes[1, 0])
+    axes[1, 0].set_title('Q-Q Plot')
     
-    # Add reference line for Q-Q plot
-    min_val, max_val = min(qq_data[0][0]), max(qq_data[0][0])
-    fig.add_trace(
-        go.Scatter(x=[min_val, max_val], y=[min_val, max_val], 
-                  mode='lines', name="Reference Line", line=dict(dash='dash')),
-        row=2, col=1
-    )
+    # Density plot
+    axes[1, 1].hist(values, bins=30, density=True, alpha=0.7, color='lightgreen', edgecolor='black')
+    axes[1, 1].set_title('Density Plot')
+    axes[1, 1].set_xlabel('Values')
+    axes[1, 1].set_ylabel('Density')
     
-    # Histogram with normal overlay
-    fig.add_trace(
-        go.Histogram(x=values, name="Histogram", nbinsx=30, opacity=0.7),
-        row=2, col=2
-    )
-    
-    fig.update_layout(height=600, showlegend=False, title=f"Distribution Analysis: {column}")
+    plt.tight_layout()
     return fig
 
 def perform_assumption_tests(data):
@@ -259,7 +208,7 @@ def perform_assumption_tests(data):
             except:
                 col_results['shapiro'] = None
                 
-            # Jarque-Bera test
+            # Jarque-Bera test  
             try:
                 stat, p = jarque_bera(values)
                 col_results['jarque_bera'] = {'statistic': stat, 'p_value': p, 'normal': p > 0.05}
@@ -343,47 +292,6 @@ def recommend_test(data_type, n_groups, is_paired, is_parametric):
     
     return "No recommendation available"
 
-def create_test_results_visualization(test_name, statistic, p_value, alpha=0.05):
-    """Create beautiful visualization for test results"""
-    
-    # Create the main results figure
-    fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=('Test Statistic', 'P-value vs Alpha'),
-        specs=[[{"type": "indicator"}, {"type": "bar"}]]
-    )
-    
-    # Test statistic indicator
-    fig.add_trace(
-        go.Indicator(
-            mode="gauge+number+delta",
-            value=abs(statistic) if statistic is not None else 0,
-            domain={'x': [0, 1], 'y': [0, 1]},
-            title={'text': "Test Statistic"},
-            gauge={'axis': {'range': [None, abs(statistic)*2 if statistic else 10]},
-                   'bar': {'color': "darkblue"},
-                   'steps': [{'range': [0, abs(statistic)*2 if statistic else 10], 'color': "lightgray"}],
-                   'threshold': {'line': {'color': "red", 'width': 4},
-                               'thickness': 0.75, 'value': abs(statistic)*1.5 if statistic else 5}}
-        ),
-        row=1, col=1
-    )
-    
-    # P-value comparison
-    colors = ['green' if p_value < alpha else 'red'] * 2
-    fig.add_trace(
-        go.Bar(x=['P-value', 'Alpha'], y=[p_value, alpha], 
-               marker_color=colors, text=[f'{p_value:.6f}', f'{alpha:.3f}'],
-               textposition='auto'),
-        row=1, col=2
-    )
-    
-    fig.update_layout(
-        height=400,
-        title=f"Statistical Test Results: {test_name}",
-        showlegend=False
-    )
-
 # --- Sidebar Configuration ---
 with st.sidebar:
     # Application Header
@@ -402,8 +310,7 @@ with st.sidebar:
     
     for step, completed in st.session_state['step_completed'].items():
         status_icon = "✅" if completed else "⏳"
-        status_class = "step-completed" if completed else "step-pending"
-        st.markdown(f'<p class="{status_class}">{status_icon} {step}</p>', unsafe_allow_html=True)
+        st.write(f"{status_icon} {step}")
     
     st.markdown("---")
     
@@ -428,29 +335,6 @@ with st.sidebar:
         - Chi-Square test
         - Fisher's Exact test
         - McNemar test
-        - Cochran's Q test
-        """)
-    
-    # Test Decision Flowchart
-    with st.expander("🗺️ Test Selection Flowchart"):
-        st.markdown("""
-        **1. Data Type?**
-        - Continuous → Go to step 2
-        - Discrete/Categorical → Go to step 4
-        
-        **2. Number of Groups?**
-        - One group → One-sample tests
-        - Two groups → Two-sample tests  
-        - 3+ groups → Multi-group tests
-        
-        **3. Check Assumptions**
-        - Normal distribution? (Shapiro-Wilk test)
-        - Equal variances? (Levene test)
-        - Independence? (Design consideration)
-        
-        **4. Paired or Independent?**
-        - Same subjects → Paired tests
-        - Different subjects → Independent tests
         """)
     
     # Quick Actions
@@ -459,18 +343,8 @@ with st.sidebar:
     
     if st.button("🔄 Reset Analysis", type="secondary"):
         for key in list(st.session_state.keys()):
-            if key not in ['current_tab']:
-                del st.session_state[key]
+            del st.session_state[key]
         st.rerun()
-    
-    if st.button("💾 Export Results", type="secondary"):
-        if st.session_state.get('data') is not None:
-            st.download_button(
-                label="📥 Download Data",
-                data=st.session_state['data'].to_csv(index=False),
-                file_name="analysis_data.csv",
-                mime="text/csv"
-            )
 
 # --- Main Application ---
 st.markdown('<h1 class="main-header">Professional Hypothesis Testing Platform</h1>', unsafe_allow_html=True)
@@ -509,17 +383,13 @@ with tab1:
         
         uploaded_file = st.file_uploader(
             "Choose a CSV file", 
-            type=['csv', 'xlsx'],
-            help="Supported formats: CSV, Excel (XLSX)"
+            type=['csv'],
+            help="Supported formats: CSV"
         )
         
         if uploaded_file:
             try:
-                if uploaded_file.name.endswith('.csv'):
-                    st.session_state['data'] = pd.read_csv(uploaded_file)
-                else:
-                    st.session_state['data'] = pd.read_excel(uploaded_file)
-                
+                st.session_state['data'] = pd.read_csv(uploaded_file)
                 st.session_state['step_completed']['Data Input'] = True
                 st.success("✅ File uploaded successfully!")
                 
@@ -530,13 +400,13 @@ with tab1:
         st.markdown("""
         <div class="professional-card">
             <h4>✏️ Manual Data Entry</h4>
-            <p>Enter your data manually using various input methods for flexible analysis.</p>
+            <p>Enter your data manually for quick analysis.</p>
         </div>
         """, unsafe_allow_html=True)
         
         manual_input_type = st.selectbox(
             "Select input method",
-            ["Single Column", "Multiple Columns", "Paired Data", "Contingency Table"]
+            ["Single Column", "Multiple Columns"]
         )
         
         if manual_input_type == "Single Column":
@@ -557,7 +427,7 @@ with tab1:
         
         elif manual_input_type == "Multiple Columns":
             st.markdown("**Enter data for multiple groups:**")
-            n_groups = st.number_input("Number of groups", min_value=2, max_value=10, value=2)
+            n_groups = st.number_input("Number of groups", min_value=2, max_value=5, value=2)
             
             group_data = {}
             for i in range(n_groups):
@@ -591,23 +461,11 @@ with tab1:
         create_data_summary_card(st.session_state['data'])
         
         # Data preview table
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            st.dataframe(
-                st.session_state['data'], 
-                use_container_width=True,
-                height=300
-            )
-        
-        with col2:
-            st.markdown("**Quick Stats**")
-            if st.session_state['data'].select_dtypes(include=[np.number]).shape[1] > 0:
-                numeric_data = st.session_state['data'].select_dtypes(include=[np.number])
-                st.text(f"Mean: {numeric_data.mean().iloc[0]:.3f}")
-                st.text(f"Std: {numeric_data.std().iloc[0]:.3f}")
-                st.text(f"Min: {numeric_data.min().iloc[0]:.3f}")
-                st.text(f"Max: {numeric_data.max().iloc[0]:.3f}")
+        st.dataframe(
+            st.session_state['data'], 
+            use_container_width=True,
+            height=300
+        )
         
         # Basic data info
         with st.expander("🔍 Detailed Data Information"):
@@ -646,11 +504,6 @@ with tab2:
             )
             
             st.session_state['data_type'] = data_type_auto.lower()
-            
-            if data_type_auto == "Continuous":
-                st.info("📊 **Continuous data** allows for parametric and non-parametric tests")
-            else:
-                st.info("🏷️ **Discrete/Categorical data** requires specific categorical tests")
         
         with col2:
             # Group configuration
@@ -674,34 +527,24 @@ with tab2:
             
             selected_column = st.selectbox("Select column for detailed analysis", numeric_cols)
             
-            # Create comprehensive plots
-            fig = create_distribution_plots(data, selected_column)
-            if fig:
+            # Choose plotting library based on availability
+            if PLOTLY_AVAILABLE:
+                # Create plotly visualization (simplified)
+                fig = go.Figure()
+                fig.add_trace(go.Histogram(x=data[selected_column].dropna(), name="Distribution"))
+                fig.update_layout(title=f"Distribution: {selected_column}", height=400)
                 st.plotly_chart(fig, use_container_width=True)
+            else:
+                # Fallback to matplotlib
+                fig = create_matplotlib_plots(data, selected_column)
+                st.pyplot(fig)
+                plt.close()
             
-            # Additional visualizations
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Correlation matrix if multiple numeric columns
-                if len(numeric_cols) > 1:
-                    st.markdown("#### 🔗 Correlation Analysis")
-                    corr_matrix = data[numeric_cols].corr()
-                    
-                    fig_corr = px.imshow(
-                        corr_matrix,
-                        text_auto=True,
-                        aspect="auto",
-                        title="Correlation Matrix",
-                        color_continuous_scale="RdBu_r"
-                    )
-                    st.plotly_chart(fig_corr, use_container_width=True)
-            
-            with col2:
-                # Group comparison if multiple columns
-                if len(numeric_cols) > 1:
-                    st.markdown("#### 📊 Group Comparison")
-                    
+            # Additional visualizations for multiple columns
+            if len(numeric_cols) > 1:
+                st.markdown("#### 📊 Group Comparison")
+                
+                if PLOTLY_AVAILABLE:
                     fig_box = go.Figure()
                     for col in numeric_cols:
                         fig_box.add_trace(go.Box(
@@ -716,6 +559,13 @@ with tab2:
                         height=400
                     )
                     st.plotly_chart(fig_box, use_container_width=True)
+                else:
+                    # Matplotlib box plot
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    data[numeric_cols].boxplot(ax=ax)
+                    ax.set_title('Box Plot Comparison')
+                    st.pyplot(fig)
+                    plt.close()
         
         # Mark step as completed
         st.session_state['step_completed']['Data Analysis'] = True
@@ -783,8 +633,6 @@ with tab3:
                         
                         if outlier_info['count'] > 0:
                             st.warning(f"⚠️ {outlier_info['count']} outliers detected")
-                            if isinstance(outlier_info['values'], list):
-                                st.text(f"Values: {outlier_info['values']}")
                     
                     # Recommendations
                     with col3:
@@ -883,27 +731,6 @@ with tab4:
         st.session_state['alternative'] = alternative
         st.session_state['step_completed']['Test Selection'] = True
         
-        # Show test information
-        with st.expander("📚 Learn About This Test"):
-            test_info = {
-                "One-Sample t-test": "Compares a sample mean to a known population mean",
-                "Independent t-test": "Compares means of two independent groups", 
-                "Paired t-test": "Compares means of two related groups",
-                "One-Way ANOVA": "Compares means of three or more independent groups",
-                "Repeated Measures ANOVA": "Compares means of three or more related groups",
-                "Wilcoxon Signed-Rank test": "Non-parametric test for paired data or one-sample location",
-                "Mann-Whitney U test": "Non-parametric test for two independent groups",
-                "Kruskal-Wallis test": "Non-parametric test for three or more independent groups", 
-                "Friedman test": "Non-parametric test for three or more related groups",
-                "Binomial test": "Tests if a proportion differs from a specified value",
-                "Chi-Square test": "Tests independence in contingency tables",
-                "Fisher's Exact test": "Tests independence in 2x2 contingency tables",
-                "McNemar test": "Tests for changes in paired categorical data",
-                "Cochran's Q test": "Tests for differences in multiple related proportions"
-            }
-            
-            st.info(test_info.get(recommended_test, "Advanced statistical test"))
-    
     else:
         st.warning("⚠️ Please complete the previous steps first.")
 
@@ -992,11 +819,7 @@ with tab5:
             # Display results
             if statistic is not None and p_value is not None:
                 
-                # Results visualization
-                fig_results = create_test_results_visualization(test_name, statistic, p_value, alpha)
-                st.plotly_chart(fig_results, use_container_width=True)
-                
-                # Detailed results
+                # Results metrics
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -1008,6 +831,25 @@ with tab5:
                 with col3:
                     significance = "Significant" if p_value < alpha else "Not Significant"
                     st.metric("Result", significance)
+                
+                # Results visualization
+                if PLOTLY_AVAILABLE:
+                    # Create beautiful bar chart for p-value vs alpha
+                    fig = go.Figure(data=[
+                        go.Bar(
+                            x=['P-value', 'Alpha (α)'], 
+                            y=[p_value, alpha],
+                            marker_color=['green' if p_value < alpha else 'red', 'blue'],
+                            text=[f'{p_value:.6f}', f'{alpha:.3f}'],
+                            textposition='auto'
+                        )
+                    ])
+                    fig.update_layout(
+                        title=f"Statistical Test Results: {test_name}",
+                        yaxis_title="Value",
+                        height=400
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
                 
                 # Interpretation
                 st.markdown("---")
@@ -1045,26 +887,6 @@ with tab5:
                         effect_interpretation = "Large effect"
                     
                     st.metric("Cohen's d", f"{effect_size:.3f}", delta=effect_interpretation)
-                
-                # Additional insights
-                with st.expander("📊 Additional Statistical Insights"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("**Confidence Level**")
-                        confidence = (1 - alpha) * 100
-                        st.text(f"{confidence}% confident in results")
-                        
-                        st.markdown("**Statistical Power**")
-                        if test_name in ["Independent t-test", "Paired t-test"]:
-                            power = ttest_power(effect_size or 0.5, data.shape[0], alpha)
-                            st.text(f"Power: {power:.3f}")
-                    
-                    with col2:
-                        st.markdown("**Sample Information**")
-                        st.text(f"Sample size: {data.shape[0]}")
-                        st.text(f"Test: {test_name}")
-                        st.text(f"Alternative: {alternative}")
                 
                 # Mark as completed
                 st.session_state['step_completed']['Statistical Testing'] = True
