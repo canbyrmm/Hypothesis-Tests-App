@@ -151,13 +151,11 @@ def recommend_test(data_type, n_groups, is_paired, is_parametric):
                 return 'One-Way ANOVA' if is_parametric else 'Kruskal-Wallis test'
     
     return "No recommendation available"
-
 # --- Sidebar Configuration ---
 with st.sidebar:
-    st.markdown("## Hypothesis Testing Platform")
+    st.markdown("## 📊 Hypothesis Testing Platform")
     st.markdown("Professional Statistical Analysis Tool")
     st.markdown("---")
-  
     
     # Progress Tracker
     st.markdown("### 📈 Progress Tracker")
@@ -169,24 +167,25 @@ with st.sidebar:
     
     st.markdown("---")
 
-    # --- roadmap ---
-    st.markdown("## Statistical Decision Roadmap")
-      try:
-          st.image("Hypothesis_Testing_Roadmap.png", 
-                   use_container_width=True)
-          
-          with open("Hypothesis_Testing_Roadmap.png", "rb") as file:
-              st.download_button(
-                  label="📥 Download",
-                  data=file,
-                  file_name="Hypothesis_Testing_Roadmap.png",
-                  mime="image/png",
-                  help="Click to download the decision tree as a high-quality image."
-              )
-      except FileNotFoundError:
-          st.info("💡 Roadmap image will appear here once the generation script is run.")
-      
-      st.markdown("---")
+    # --- Roadmap ---
+    st.markdown("### 🗺️ Statistical Decision Roadmap")
+    try:
+        # Görseli yükle
+        st.image("Hypothesis_Testing_Roadmap.png", use_container_width=True)
+        
+        # Dosyayı okuyup indirme butonu oluştur
+        with open("Hypothesis_Testing_Roadmap.png", "rb") as file:
+            st.download_button(
+                label="📥 Download Roadmap",
+                data=file,
+                file_name="Hypothesis_Testing_Roadmap.png",
+                mime="image/png",
+                help="Click to download the decision tree as a high-quality image."
+            )
+    except FileNotFoundError:
+        st.info("💡 Roadmap image will appear here once the generation script is run.")
+    
+    st.markdown("---")
     
     # Quick Actions
     if st.button("🔄 Reset Analysis"):
