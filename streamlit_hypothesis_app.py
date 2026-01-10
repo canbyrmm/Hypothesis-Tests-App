@@ -169,24 +169,24 @@ with st.sidebar:
     
     st.markdown("---")
 
-  # --- roadmap ---
-  st.markdown("## Statistical Decision Roadmap")
-    try:
-        st.image("Hypothesis_Testing_Roadmap.png", 
-                 use_container_width=True)
-        
-        with open("Hypothesis_Testing_Roadmap.png", "rb") as file:
-            st.download_button(
-                label="📥 Download",
-                data=file,
-                file_name="Hypothesis_Testing_Roadmap.png",
-                mime="image/png",
-                help="Click to download the decision tree as a high-quality image."
-            )
-    except FileNotFoundError:
-        st.info("💡 Roadmap image will appear here once the generation script is run.")
-    
-    st.markdown("---")
+    # --- roadmap ---
+    st.markdown("## Statistical Decision Roadmap")
+      try:
+          st.image("Hypothesis_Testing_Roadmap.png", 
+                   use_container_width=True)
+          
+          with open("Hypothesis_Testing_Roadmap.png", "rb") as file:
+              st.download_button(
+                  label="📥 Download",
+                  data=file,
+                  file_name="Hypothesis_Testing_Roadmap.png",
+                  mime="image/png",
+                  help="Click to download the decision tree as a high-quality image."
+              )
+      except FileNotFoundError:
+          st.info("💡 Roadmap image will appear here once the generation script is run.")
+      
+      st.markdown("---")
     
     # Quick Actions
     if st.button("🔄 Reset Analysis"):
