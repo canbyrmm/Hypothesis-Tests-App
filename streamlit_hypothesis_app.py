@@ -16,7 +16,6 @@ warnings.filterwarnings('ignore')
 # Configure page
 st.set_page_config(
     page_title="Professional Hypothesis Testing Platform",
-    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -155,10 +154,29 @@ def recommend_test(data_type, n_groups, is_paired, is_parametric):
 
 # --- Sidebar Configuration ---
 with st.sidebar:
-    st.markdown("## 📊 Hypothesis Testing Platform")
+    st.markdown("## Hypothesis Testing Platform")
     st.markdown("Professional Statistical Analysis Tool")
     st.markdown("---")
+  
+    # --- roadmap ---
+    st.markdown("---")
+    try:
+        st.image("Hypothesis_Testing_Roadmap.png", 
+                 caption="Statistical Decision Roadmap", 
+                 use_container_width=True)
+        
+        with open("Hypothesis_Testing_Roadmap.png", "rb") as file:
+            st.download_button(
+                label="📥 Download Roadmap PNG",
+                data=file,
+                file_name="Hypothesis_Testing_Roadmap.png",
+                mime="image/png",
+                help="Click to download the decision tree as a high-quality image."
+            )
+    except FileNotFoundError:
+        st.info("💡 Roadmap image will appear here once the generation script is run.")
     
+    st.markdown("---")
     # Progress Tracker
     st.markdown("### 📈 Progress Tracker")
     create_progress_indicator()
@@ -424,25 +442,39 @@ with tab5:
         test_name = st.session_state['selected_test']
         alpha = st.session_state.get('alpha', 0.05)
         alternative = st.session_state.get('alternative', 'two-sided')
+        is_paired = st.session_state.get('paired', False)
         
         st.markdown(f"### 🧪 Running: {test_name}")
         
         try:
             statistic = None
             p_value = None
-            
             numeric_cols = data.select_dtypes(include=[np.number]).columns
             
-            # Run appropriate test
+            # --- Veri Temizleme (Data Cleaning) ---
+            # Paired (Eşleştirilmiş) testlerde iki sütunda da ortak olmayan satırlar atılmalıdır
+            if is_paired and len(numeric_cols) >= 2:
+                clean_df = data[[numeric_cols[0], numeric_cols[1]]].dropna()
+                g1, g2 = clean_df[numeric_cols[0]], clean_df[numeric_cols[1]]
+            else:
+                g1 = data[numeric_cols[0]].dropna()
+                g2 = data[numeric_cols[1]].dropna() if len(numeric_cols) > 1 else None
+
+            # --- Test Çalıştırma Mantığı ---
+            
             if "One-Sample t-test" in test_name:
-                test_value = st.number_input("Population mean to test against", value=0.0)
-                statistic, p_value = stats.ttest_1samp(data[numeric_cols[0]].dropna(), test_value)
+                test_value = st.number_input("Population mean to test against (H₀)", value=0.0)
+                statistic, p_value = stats.ttest_1samp(g1, test_value, alternative=alternative)
                 
             elif "Independent t-test" in test_name:
-                statistic, p_value = stats.ttest_ind(data[numeric_cols[0]].dropna(), data[numeric_cols[1]].dropna())
+                # Varyans eşitliği kontrolü (Levene Testi) p-değerini doğrudan etkiler
+                stat_l, p_l = stats.levene(g1, g2)
+                equal_var_assumption = (p_l > 0.05)
+                statistic, p_value = stats.ttest_ind(g1, g2, equal_var=equal_var_assumption, alternative=alternative)
+                st.info(f"Varyans Eşitliği (Levene p={p_l:.4f}): {'Eşit Varsayıldı' if equal_var_assumption else 'Eşit Varsayılmadı (Welch T-Test)'}")
                 
             elif "Paired t-test" in test_name:
-                statistic, p_value = stats.ttest_rel(data[numeric_cols[0]].dropna(), data[numeric_cols[1]].dropna())
+                statistic, p_value = stats.ttest_rel(g1, g2, alternative=alternative)
                 
             elif "One-Way ANOVA" in test_name:
                 groups = [data[col].dropna() for col in numeric_cols]
@@ -451,86 +483,75 @@ with tab5:
             elif "Wilcoxon" in test_name:
                 if len(numeric_cols) == 1:
                     test_value = st.number_input("Median to test against", value=0.0)
-                    statistic, p_value = stats.wilcoxon(data[numeric_cols[0]].dropna() - test_value)
+                    statistic, p_value = stats.wilcoxon(g1 - test_value, alternative=alternative)
                 else:
-                    statistic, p_value = stats.wilcoxon(data[numeric_cols[0]].dropna(), data[numeric_cols[1]].dropna())
+                    statistic, p_value = stats.wilcoxon(g1, g2, alternative=alternative)
                     
             elif "Mann-Whitney" in test_name:
-                statistic, p_value = stats.mannwhitneyu(data[numeric_cols[0]].dropna(), data[numeric_cols[1]].dropna(), alternative=alternative)
+                statistic, p_value = stats.mannwhitneyu(g1, g2, alternative=alternative)
                 
             elif "Kruskal-Wallis" in test_name:
                 groups = [data[col].dropna() for col in numeric_cols]
                 statistic, p_value = stats.kruskal(*groups)
                 
             elif "Friedman" in test_name:
-                groups = [data[col].dropna() for col in numeric_cols]
+                # Friedman testi için verilerin aynı boyutta olması gerekir
+                clean_all = data[numeric_cols].dropna()
+                groups = [clean_all[col] for col in numeric_cols]
                 statistic, p_value = stats.friedmanchisquare(*groups)
             
-            # Display results
+            # --- Sonuçların Gösterilmesi ---
             if statistic is not None and p_value is not None:
                 col1, col2, col3 = st.columns(3)
-                
                 with col1:
                     st.metric("Test Statistic", f"{statistic:.4f}")
                 with col2:
                     st.metric("P-value", f"{p_value:.6f}")
                 with col3:
                     significance = "Significant" if p_value < alpha else "Not Significant"
-                    st.metric("Result", significance)
+                    st.metric("Decision", significance)
                 
-                # Create simple bar chart
+                # P-Value vs Alpha Görselleştirme
                 fig, ax = plt.subplots(figsize=(8, 4))
-                bars = ax.bar(['P-value', 'Alpha (α)'], [p_value, alpha], 
-                             color=['green' if p_value < alpha else 'red', 'blue'])
-                ax.set_title(f"Statistical Test Results: {test_name}")
-                ax.set_ylabel("Value")
-                
-                # Add value labels on bars
-                for bar, value in zip(bars, [p_value, alpha]):
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width()/2., height + height*0.01,
-                           f'{value:.6f}', ha='center', va='bottom')
-                
+                colors = ['#28a745' if p_value < alpha else '#dc3545', '#3498db']
+                bars = ax.bar(['P-value', 'Alpha (α)'], [p_value, alpha], color=colors)
+                ax.set_title(f"Result Visualization ({test_name})")
+                ax.set_ylim(0, max(alpha, p_value) * 1.2)
+                for bar in bars:
+                    yval = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2, yval, f'{yval:.4f}', va='bottom', ha='center')
                 st.pyplot(fig)
                 plt.close()
                 
-                # Interpretation
-                st.markdown("---")
-                st.markdown("### 🎯 Statistical Interpretation")
-                
+                # Metinsel Yorum
                 if p_value < alpha:
-                    st.markdown(f"""
-                    <div class="test-result-positive">
-                        <h4>✅ Statistically Significant Result</h4>
-                        <p><strong>Conclusion:</strong> Reject the null hypothesis (H₀)</p>
-                        <p><strong>Interpretation:</strong> There is sufficient evidence to support the alternative hypothesis at α = {alpha} level.</p>
-                        <p><strong>P-value ({p_value:.6f}) < α ({alpha})</strong></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="test-result-positive">
+                        <h4>✅ Statistically Significant (p < {alpha})</h4>
+                        <p>There is enough evidence to <b>reject the Null Hypothesis (H₀)</b>.</p>
+                        <p>Interpretation: The observed effect is unlikely to be due to chance.</p>
+                        </div>""", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"""
-                    <div class="test-result-negative">
-                        <h4>❌ Not Statistically Significant</h4>
-                        <p><strong>Conclusion:</strong> Fail to reject the null hypothesis (H₀)</p>
-                        <p><strong>Interpretation:</strong> There is insufficient evidence to support the alternative hypothesis at α = {alpha} level.</p>
-                        <p><strong>P-value ({p_value:.6f}) ≥ α ({alpha})</strong></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="test-result-negative">
+                        <h4>❌ Not Statistically Significant (p ≥ {alpha})</h4>
+                        <p>There is NOT enough evidence to reject the Null Hypothesis (H₀).</p>
+                        <p>Interpretation: The observed difference could be due to random variation.</p>
+                        </div>""", unsafe_allow_html=True)
                 
                 st.session_state['step_completed']['Statistical Testing'] = True
                 
         except Exception as e:
-            st.error(f"❌ Error running statistical test: {str(e)}")
+            st.error(f"❌ Calculation Error: {str(e)}")
+            st.info("Check if your groups have equal lengths for paired tests or enough data points.")
             
     else:
-        st.warning("⚠️ Please complete all previous steps first.")
+        st.warning("⚠️ Please complete the previous steps to run the analysis.")
 
 # --- Footer ---
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; padding: 2rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px; margin-top: 2rem;">
-    <h4>📊 Professional Hypothesis Testing Platform</h4>
-    <p style="color: #6c757d;">Built with Streamlit • Powered by SciPy & Matplotlib</p>
+    <h4>Professional Hypothesis Testing Platform</h4>
+    <p style="color: #6c757d;">© 2026 <strong>Can Bayram</strong></p>
     <p style="color: #6c757d; font-size: 0.9rem;">
         🔬 Advanced Statistical Analysis • 📈 Interactive Visualizations • 🎯 Automated Test Selection
     </p>
